@@ -1,18 +1,15 @@
 // api/notificar.js
 const admin = require("firebase-admin");
 
-// Inicia o Firebase apenas uma vez
 if (!admin.apps.length) {
-  // A chave virá do segredo guardado na Vercel
   const serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
-
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
   });
 }
 
 module.exports = async (req, res) => {
-  // Configuração de Segurança (CORS) para aceitar pedidos do seu site
+  // Configuração de Segurança (CORS)
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*'); 
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -21,13 +18,11 @@ module.exports = async (req, res) => {
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
 
-  // Responde rápido para testes de conexão do navegador
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
 
-  // Só aceita envio de dados (POST)
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido' });
   }
@@ -36,10 +31,9 @@ module.exports = async (req, res) => {
     const { token, titulo, corpo, link } = req.body;
 
     if (!token) {
-        return res.status(400).json({ error: 'Faltou o token de destino' });
+        return res.status(400).json({ error: 'Token de destino faltando' });
     }
 
-    // O Pacote que vai pro Google
     const message = {
       token: token,
       notification: {
@@ -53,13 +47,21 @@ module.exports = async (req, res) => {
       }
     };
 
-    // Envia!
     const response = await admin.messaging().send(message);
     console.log('Sucesso:', response);
     return res.status(200).json({ success: true, id: response });
 
   } catch (error) {
-    console.error('Erro:', error);
-    return res.status(500).json({ error: error.message });
+    console.error('Erro no envio:', error);
+    
+    // --- CÓDIGO DE ERRO PARA O APP RECONHECER ---
+    const errorCode = error.code || error.errorInfo?.code || 'unknown';
+    
+    return res.status(500).json({ 
+        error: {
+            message: error.message,
+            code: errorCode 
+        }
+    });
   }
 };
